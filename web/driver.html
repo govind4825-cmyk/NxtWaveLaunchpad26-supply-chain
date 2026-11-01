@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RASAD driver</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <style>
+    :root { --bg: #f6f4ef; --card: #fff; --ink: #1b2126; --muted: #5d6870; --line: #e2ddd3; --accent: #c2410c; --ok: #2f855a; --hold: #b7791f; --route: #1d4ed8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 "IBM Plex Sans", system-ui, sans-serif; }
+    .wrap { max-width: 560px; margin: 0 auto; padding: 20px 16px 96px; }
+    .brand { color: var(--muted); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+    .brand b { color: var(--accent); letter-spacing: 0; text-transform: none; font-size: 15px; margin-right: 6px; }
+    h1 { font-size: 24px; margin: 6px 0 2px; }
+    h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 24px 0 10px; }
+    .meta { color: var(--muted); font-size: 13px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+    #map { height: 260px; border-radius: 12px; border: 1px solid var(--line); margin-top: 14px; }
+    .summary { display: flex; gap: 18px; margin-top: 12px; }
+    .summary div { font-size: 13px; color: var(--muted); }
+    .summary b { display: block; font-size: 20px; color: var(--ink); font-weight: 600; }
+    button { font: inherit; font-weight: 500; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    .primary { background: var(--accent); color: #fff; width: 100%; margin-top: 12px; padding: 13px; }
+    .ok { background: var(--ok); color: #fff; } .no { background: #eee8dd; color: var(--ink); }
+    a.nav { display: inline-block; padding: 10px 14px; border-radius: 8px; background: #e8eefc; color: var(--route); text-decoration: none; font-weight: 500; }
+    .stop { display: grid; grid-template-columns: 34px 1fr; gap: 10px; }
+    .num { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; color: #fff; background: var(--route); }
+    .stop.pickup .num { background: var(--ink); }
+    .stop.done { opacity: .55; } .stop.done .num { background: var(--ok); }
+    .stop.blocked .num { background: var(--hold); }
+    .stop.released .num, .stop.failed .num { background: #9aa3aa; }
+    .stop.next { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(194,65,12,.15); }
+    .kind { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .what { font-weight: 600; }
+    .note { font-size: 13px; color: var(--hold); margin-top: 4px; }
+    .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .why { display: none; margin-top: 8px; gap: 8px; }
+    .why input { flex: 1; font: inherit; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; }
+    .blocked-btn { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 528px; margin: 0 auto; background: var(--ink); color: #fff; padding: 14px; border-radius: 12px; font-weight: 600; }
+    .toast { position: fixed; left: 16px; right: 16px; bottom: 80px; max-width: 528px; margin: 0 auto; background: var(--accent); color: #fff; padding: 12px 14px; border-radius: 10px; display: none; white-space: pre-line; z-index: 5; }
+    .msg { font-size: 13px; border-bottom: 1px solid var(--line); padding: 6px 0; white-space: pre-line; }
+    .msg:last-child { border-bottom: 0; }
+    .msg .who { color: var(--muted); font-size: 12px; }
+    .empty { color: var(--muted); font-size: 14px; }
+    .gps { font-size: 13px; display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><b>रसद</b>RASAD driver</div>
+    <h1 id="name">Loading…</h1>
+    <div class="meta" id="sub"></div>
+    <label class="gps"><input type="checkbox" id="share"> Share my location from this page while it is open</label>
+
+    <div id="trip"></div>
+    <div id="map"></div>
+
+    <h2>Stops</h2>
+    <div id="stops"></div>
+
+    <h2>Messages</h2>
+    <div class="card" id="messages"></div>
+  </div>
+  <button class="blocked-btn" id="blocked">Road blocked here</button>
+  <div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+(() => {
+  const token = location.pathname.split("/").pop();
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const istDay = (d) => d.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" });
+  const hm = (iso) => {
+    if (!iso) return "–";
+    const d = new Date(iso), t = d.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" });
+    return istDay(d) === istDay(new Date()) ? t : `${d.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short" })} ${t}`;
+  };
+  const when = (iso) => iso ? new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+  const toast = (t) => { const el = document.getElementById("toast"); el.textContent = t; el.style.display = "block"; setTimeout(() => (el.style.display = "none"), 5000); };
+  let data = null, map = null, markers = [], fitted = false;
+
+  async function api(path, body) {
+    const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.detail || `error ${r.status}`);
+    return j;
+  }
+
+  function here(timeout = 8000) {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition((p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }), () => resolve(null),
+        { enableHighAccuracy: true, timeout, maximumAge: 30000 });
+    });
+  }
+
+  function initMap() {
+    if (typeof maplibregl === "undefined") { document.getElementById("map").style.display = "none"; return; }
+    map = new maplibregl.Map({
+      container: "map", attributionControl: { compact: true },
+      style: { version: 8, sources: { osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256,
+        attribution: "© OpenStreetMap contributors" } }, layers: [{ id: "osm", type: "raster", source: "osm" }] },
+      center: [78.9, 22.5], zoom: 4,
+    });
+    map.on("load", () => {
+      map.addSource("route", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": "#fff", "line-width": 8 } });
+      map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": "#1d4ed8", "line-width": 5 } });
+      drawMap();
+    });
+  }
+
+  function drawMap() {
+    if (!map || !map.getSource("route") || !data) return;
+    const t = data.trip;
+    map.getSource("route").setData(t && t.geom ? { type: "Feature", geometry: t.geom, properties: {} } : { type: "FeatureCollection", features: [] });
+    markers.forEach((m) => m.remove()); markers = [];
+    const b = new maplibregl.LngLatBounds();
+    for (const st of (t ? t.stops : [])) {
+      if (!["pending", "blocked"].includes(st.status)) continue;
+      const el = document.createElement("div");
+      el.className = "num"; el.textContent = st.seq;
+      el.style.background = st.status === "blocked" ? "#b7791f" : (st.kind === "pickup" ? "#1b2126" : "#1d4ed8");
+      el.style.border = "2px solid #fff"; el.style.fontSize = "13px";
+      markers.push(new maplibregl.Marker({ element: el }).setLngLat([st.lon, st.lat]).addTo(map));
+      b.extend([st.lon, st.lat]);
+    }
+    if (data.position) {
+      const me = document.createElement("div");
+      Object.assign(me.style, { width: "16px", height: "16px", borderRadius: "50%", background: "#c2410c", border: "3px solid #fff", boxShadow: "0 0 0 2px #c2410c" });
+      markers.push(new maplibregl.Marker({ element: me }).setLngLat([data.position.lon, data.position.lat]).addTo(map));
+      b.extend([data.position.lon, data.position.lat]);
+    }
+    if (t && t.geom) t.geom.coordinates.forEach((c) => b.extend(c));
+    if (!b.isEmpty() && !fitted) { map.fitBounds(b, { padding: 36, maxZoom: 15, duration: 0 }); fitted = true; }
+  }
+
+  function render() {
+    const d = data;
+    document.getElementById("name").textContent = d.driver.name;
+    document.getElementById("sub").textContent = `${d.driver.vehicle}, carries up to ${Math.round(d.driver.capacity_kg).toLocaleString("en-IN")} kg`
+      + (d.position ? `. Last GPS fix ${when(d.position.fix_time)}` : ". No GPS fix yet");
+    const t = d.trip;
+    const tripEl = document.getElementById("trip"), stopsEl = document.getElementById("stops");
+    if (!t || !["planned", "en_route"].includes(t.status)) {
+      tripEl.innerHTML = `<div class="card" style="margin-top:14px"><b>No trip right now.</b><div class="meta">You will get a WhatsApp message and this page will update when there is one.${t ? ` Last trip #${t.id} is ${esc(t.status.replace("_", " "))}.` : ""}</div></div>`;
+    } else {
+      const open = t.stops.filter((s) => ["pending", "blocked"].includes(s.status)).length;
+      const rr = t.plan && t.plan.reroute_reason;
+      tripEl.innerHTML = `<div class="card" style="margin-top:14px">
+        <div class="kind">Trip #${t.id} · ${t.status === "planned" ? "ready to start" : "on the road"}</div>
+        <div class="summary"><div><b>${open}</b>stops left</div><div><b>${Math.round(t.planned_min || 0)} min</b>driving + loading</div><div><b>${(t.planned_km || 0).toFixed(1)} km</b>to go</div></div>
+        ${rr && rr !== "checking held stops" ? `<div class="note">Route changed: ${esc(rr)}</div>` : ""}
+        ${t.status === "planned" ? `<button class="primary" id="start">Start trip</button>` : ""}
+      </div>`;
+      const s = document.getElementById("start");
+      if (s) s.onclick = async () => { try { toast((await api(`/api/driver/${token}/start`, {})).message); load(); } catch (e) { toast(e.message); } };
+    }
+    if (!t) { stopsEl.innerHTML = `<div class="empty">No stops.</div>`; }
+    else {
+      const next = t.stops.find((s) => s.status === "pending");
+      stopsEl.innerHTML = t.stops.map((st) => {
+        const live = ["pending", "blocked"].includes(st.status) && ["planned", "en_route"].includes(t.status);
+        const verb = st.kind === "pickup" ? "Pick up" : "Drop";
+        const label = st.kind === "pickup" ? "Picked up" : "Delivered";
+        const stateNote = st.status === "done" ? `Done ${hm(st.done_at)}` : st.status === "released" ? "Given to another driver" : st.status === "failed" ? "Could not be done" : "";
+        return `<div class="card stop ${st.kind} ${st.status} ${next && next.id === st.id ? "next" : ""}">
+          <div class="num">${st.seq}</div>
+          <div>
+            <div class="kind">${verb} · order #${st.procurement_id}</div>
+            <div class="what">${esc(st.load_text)}</div>
+            <div>${st.kind === "pickup" ? "at" : "to"} ${esc(st.name)}</div>
+            <div class="meta">${live ? `ETA ${hm(st.eta)}${st.due ? ` · needed by ${hm(st.due)}` : ""}` : esc(stateNote)}</div>
+            ${st.note ? `<div class="note">${esc(st.note)}</div>` : ""}
+            ${live ? `<div class="actions">
+              <button class="ok" data-act="done" data-id="${st.id}">${label}</button>
+              <button class="no" data-act="why" data-id="${st.id}">Couldn't</button>
+              <a class="nav" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${st.lat},${st.lon}">Navigate</a>
+            </div>
+            <div class="why" id="why-${st.id}"><input placeholder="What went wrong?" maxlength="200"><button class="no" data-act="failed" data-id="${st.id}">Send</button></div>` : ""}
+          </div></div>`;
+      }).join("");
+    }
+    document.getElementById("messages").innerHTML = d.messages.length ? d.messages.map((m) =>
+      `<div class="msg"><div class="who">${m.direction === "in" ? "You" : "RASAD"} · ${when(m.at)} · ${esc(m.channel)}</div>${esc(m.text)}</div>`).join("")
+      : `<div class="empty">No messages yet.</div>`;
+    drawMap();
+  }
+
+  document.getElementById("stops").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-act]");
+    if (!b) return;
+    const id = b.dataset.id, act = b.dataset.act;
+    if (act === "why") { const w = document.getElementById(`why-${id}`); w.style.display = w.style.display === "flex" ? "none" : "flex"; return; }
+    const note = act === "failed" ? document.querySelector(`#why-${id} input`).value.trim() : null;
+    if (act === "failed" && !note) { toast("Say what went wrong first."); return; }
+    b.disabled = true;
+    try { toast((await api(`/api/driver/${token}/stops/${id}`, { action: act, note })).message); }
+    catch (err) { toast(err.message); }
+    load();
+  });
+
+  document.getElementById("blocked").onclick = async () => {
+    const note = prompt("Where is the road blocked? (optional)", "");
+    if (note === null) return;
+    toast("Getting your location…");
+    const p = await here();
+    try { toast((await api(`/api/driver/${token}/blocked`, { action: "blocked", note, lat: p && p.lat, lon: p && p.lon })).message); }
+    catch (err) { toast(err.message); }
+    setTimeout(load, 4000);
+  };
+
+  // Optional live location from the page itself, for drivers without the tracking app.
+  let watch = null;
+  const share = document.getElementById("share");
+  try { share.checked = localStorage.getItem("rasad-share") === "1"; } catch (_) {}
+  async function sendPos(p) {
+    try { await api(`/api/driver/${token}/position`, { lat: p.coords.latitude, lon: p.coords.longitude, speed: p.coords.speed, heading: p.coords.heading }); } catch (_) {}
+  }
+  function setShare() {
+    try { localStorage.setItem("rasad-share", share.checked ? "1" : "0"); } catch (_) {}
+    if (share.checked && navigator.geolocation && watch === null) {
+      let last = 0;
+      watch = navigator.geolocation.watchPosition((p) => { if (Date.now() - last > 20000) { last = Date.now(); sendPos(p); } },
+        () => toast("Location is off for this page."), { enableHighAccuracy: true, maximumAge: 15000 });
+    } else if (!share.checked && watch !== null) { navigator.geolocation.clearWatch(watch); watch = null; }
+  }
+  share.onchange = setShare;
+
+  async function load() {
+    try { data = await api(`/api/driver/${token}`); render(); }
+    catch (e) { document.getElementById("name").textContent = "This link is not valid"; document.getElementById("sub").textContent = e.message; }
+  }
+  initMap();
+  load();
+  setShare();
+  setInterval(load, 20000);
+})();
+</script>
+</body>
+</html>

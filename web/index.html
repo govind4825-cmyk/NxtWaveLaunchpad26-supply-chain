@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RASAD Control Room</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <link href="/static/style.css" rel="stylesheet">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="mark">रसद</span><span class="name">RASAD</span><span class="sub">Control room</span></div>
+    <div class="top-right">
+      <a href="/ledger" target="_blank" class="ledger-link">Public Needs Ledger ↗</a>
+      <span id="ws-state" class="dot" title="Live event stream"></span>
+      <span id="clock" class="mono"></span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel">
+      <section>
+        <div class="section-head">
+          <h2>Live feeds</h2>
+          <span class="hint">every value traceable to its source</span>
+        </div>
+        <div id="feeds" class="feeds"></div>
+      </section>
+
+      <section class="grow">
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="access" role="tab">Access windows <span id="access-count" class="count"></span></button>
+          <button class="tab" data-tab="orders" role="tab">Orders <span id="order-count" class="count"></span></button>
+          <button class="tab" data-tab="trips" role="tab">Trips <span id="trip-count" class="count"></span></button>
+          <button class="tab" data-tab="hazards" role="tab">Hazards <span id="hazard-count" class="count"></span></button>
+        </div>
+        <div id="pane-access" class="pane">
+          <div id="access" class="hazards"></div>
+        </div>
+        <div id="pane-orders" class="pane" hidden>
+          <div id="orders" class="hazards"></div>
+        </div>
+        <div id="pane-trips" class="pane" hidden>
+          <div id="trips" class="hazards"></div>
+        </div>
+        <div id="pane-hazards" class="pane" hidden>
+          <label class="toggle pane-filter"><input type="checkbox" id="only-logistics" checked> Logistics-relevant only</label>
+          <div id="hazards" class="hazards"></div>
+        </div>
+      </section>
+    </aside>
+
+    <section class="map-wrap">
+      <div id="map"></div>
+      <div class="timebar" role="group" aria-label="Road risk forecast time">
+        <span class="tb-label">Road risk</span>
+        <button data-h="0" class="active">Now</button><button data-h="6">+6h</button><button data-h="12">+12h</button>
+        <button data-h="24">+24h</button><button data-h="48">+48h</button><button data-h="72">+72h</button>
+        <span id="tb-at" class="tb-at mono"></span>
+      </div>
+      <div class="tools" role="group" aria-label="Map tools">
+        <button data-mode="depot" title="Click the map to register a depot where trucks start">+ Depot</button>
+        <button data-mode="shelter" title="Click the map to add a shelter or relief camp">+ Shelter</button>
+        <button data-mode="supplier" title="Click the map to register a supplier (shop, wholesaler, NGO warehouse)">+ Supplier</button>
+        <button data-mode="report" title="Click the map to log a field report of a blocked road">Report blocked road</button>
+        <span id="mode-hint" class="mode-hint"></span>
+      </div>
+      <div class="legend">
+        <div class="legend-title">Hazard severity (CAP)</div>
+        <div class="legend-row"><i class="sw s4"></i>Extreme<i class="sw s3"></i>Severe<i class="sw s2"></i>Moderate<i class="sw s1"></i>Minor</div>
+        <div class="legend-title">River crossing, flood probability next 3 days</div>
+        <div class="legend-row"><i class="pt p-hi"></i>&ge;50%<i class="pt p-mid"></i>20&ndash;50%<i class="pt p-lo"></i>&lt;20%<i class="pt p-na"></i>no data</div>
+        <div class="legend-title">Shelter access window</div>
+        <div class="legend-row"><i class="pt a-cut"></i>Cut off<i class="pt a-closing"></i>Closing<i class="pt a-open"></i>Open 72h+<i class="pt p-na"></i>Unknown<i class="sq"></i>Depot<i class="sq sup"></i>Supplier</div>
+        <div class="legend-title">Trips</div>
+        <div class="legend-row"><i class="ln"></i>Driver route<i class="pt st-pick"></i>Pick up<i class="pt st-drop"></i>Drop<i class="pt st-hold"></i>On hold</div>
+      </div>
+      <aside id="drawer" class="drawer" hidden>
+        <button id="drawer-close" class="close" aria-label="Close">&times;</button>
+        <div id="drawer-body"></div>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="ticker">
+    <span class="ticker-label">Events</span>
+    <div id="events" class="events mono"></div>
+  </footer>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

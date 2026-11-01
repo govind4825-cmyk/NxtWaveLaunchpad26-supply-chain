@@ -1,0 +1,19 @@
+{
+  "_note": "Scenario used in our test run on the Andorra OSM extract. For an Indian state, copy this file and put depots, shelters and suppliers on roads in your extract. These are setup inputs an officer would enter, not data the system reports.",
+  "depots": [{"name": "Andorra la Vella depot", "lat": 42.5063, "lon": 1.5218}],
+  "shelters": [
+    {"name": "Encamp school", "lat": 42.5354, "lon": 1.5806, "people": 600},
+    {"name": "Sant Julia hall", "lat": 42.4637, "lon": 1.4915, "people": 300}
+  ],
+  "suppliers": [
+    {"name": "Escaldes Traders", "phone": "9811100001", "kind": "wholesaler", "lat": 42.5100, "lon": 1.5340,
+     "stock": ["STOCK water 30000 @ 2", "STOCK rice 4000 @ 38", "STOCK soap 50 kg @ 120", "STOCK containers 400 @ 90"]},
+    {"name": "Valira Wholesale", "phone": "9811100002", "kind": "wholesaler", "lat": 42.5080, "lon": 1.5300,
+     "stock": ["STOCK water 20000 @ 2.2", "STOCK rice 3000 @ 40"]}
+  ],
+  "drivers": [
+    {"name": "Ravi Kumar", "phone": "9876500001", "vehicle": "10 t truck", "capacity_kg": 10000},
+    {"name": "Asha Thapa", "phone": "9876500002", "vehicle": "pickup", "capacity_kg": 3000},
+    {"name": "Imran Sheikh", "phone": "9876500003", "vehicle": "9 t truck", "capacity_kg": 9000}
+  ]
+}

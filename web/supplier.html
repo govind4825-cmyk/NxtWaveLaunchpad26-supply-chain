@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RASAD supplier</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #f6f4ef; --card: #fff; --ink: #1b2126; --muted: #5d6870; --line: #e2ddd3; --accent: #c2410c; --ok: #2f855a; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 "IBM Plex Sans", system-ui, sans-serif; }
+    .wrap { max-width: 560px; margin: 0 auto; padding: 20px 16px 48px; }
+    .brand { color: var(--muted); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+    .brand b { color: var(--accent); letter-spacing: 0; text-transform: none; font-size: 15px; margin-right: 6px; }
+    h1 { font-size: 24px; margin: 6px 0 2px; }
+    h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 26px 0 10px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    label { font-size: 12px; color: var(--muted); display: block; }
+    input { width: 100%; font: inherit; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .meta { color: var(--muted); font-size: 13px; }
+    button { font: inherit; font-weight: 500; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+    .primary { background: var(--accent); color: #fff; width: 100%; margin-top: 4px; }
+    .ok { background: var(--ok); color: #fff; } .no { background: #eee8dd; color: var(--ink); }
+    .actions { display: flex; gap: 8px; margin-top: 10px; }
+    .status { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .s-Created { color: var(--accent); } .s-Accepted { color: var(--ok); } .s-Packed { color: var(--ok); } .s-Cancelled { color: var(--muted); }
+    .toast { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 528px; margin: 0 auto; background: var(--ink); color: #fff; padding: 12px 14px; border-radius: 10px; display: none; white-space: pre-line; }
+    .msg { font-size: 13px; border-bottom: 1px solid var(--line); padding: 6px 0; white-space: pre-line; }
+    .msg:last-child { border-bottom: 0; }
+    .msg .who { color: var(--muted); font-size: 12px; }
+    .empty { color: var(--muted); font-size: 14px; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><b>रसद</b>RASAD supplier</div>
+    <h1 id="name">Loading…</h1>
+    <div class="meta">Keep your stock current so relief orders can reach you. Orders also arrive on WhatsApp.</div>
+
+    <h2>New orders</h2>
+    <div id="orders"></div>
+
+    <h2>Your stock</h2>
+    <form id="stock"></form>
+
+    <h2>Messages</h2>
+    <div class="card" id="messages"></div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const token = location.pathname.split("/").pop();
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const when = (iso) => iso ? new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "never";
+  const toast = (t) => { const el = document.getElementById("toast"); el.textContent = t; el.style.display = "block"; setTimeout(() => (el.style.display = "none"), 4500); };
+
+  async function say(text) {
+    const r = await fetch(`/api/supplier/${token}/message`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    const d = await r.json();
+    toast(d.reply || d.detail || "Done");
+    load();
+  }
+
+  async function load() {
+    const r = await fetch(`/api/supplier/${token}`);
+    if (!r.ok) { document.getElementById("name").textContent = "This link is not valid."; return; }
+    const d = await r.json();
+    document.getElementById("name").textContent = d.supplier.name;
+
+    const open = d.orders.filter((o) => o.status === "Created" || o.status === "Accepted");
+    document.getElementById("orders").innerHTML = open.length ? open.map((o) => `
+      <div class="card">
+        <div class="status s-${esc(o.status)}">${o.status === "Created" ? "Waiting for you" : "Accepted"}</div>
+        <div><b>#${o.id}</b> · ${esc(o.what)}</div>
+        <div class="meta">For ${esc(o.deliver_to.name || "relief shelter")}${o.deliver_to.instructions ? " · " + esc(o.deliver_to.instructions) : ""}</div>
+        ${o.deliver_to.gps ? `<div class="meta"><a href="https://www.google.com/maps?q=${esc(o.deliver_to.gps)}" target="_blank" rel="noopener">Open delivery point in Maps</a></div>` : ""}
+        <div class="actions">
+          ${o.status === "Created" ? `<button class="ok" data-say="ACCEPT ${o.id}">Accept</button><button class="no" data-reject="${o.id}">Reject</button>`
+                                   : `<button class="ok" data-say="READY ${o.id}">Packed and ready</button><button class="no" data-reject="${o.id}">Cannot supply</button>`}
+        </div>
+      </div>`).join("") : `<div class="empty">No orders waiting.</div>`;
+
+    document.getElementById("stock").innerHTML = d.items.map((it) => {
+      const shown = it.available == null ? "" : +(it.available / it.factor).toFixed(2);
+      const price = it.unit_price == null ? "" : +(it.unit_price * it.factor).toFixed(2);
+      return `<div class="card" data-item="${it.item}" data-unit="${esc(it.msg_unit)}">
+        <b>${esc(it.name)}</b>
+        <div class="meta">Last updated ${when(it.updated_at)}${it.reserved ? ` · ${+(it.reserved / it.factor).toFixed(1)} ${esc(it.msg_unit)} held for orders` : ""}</div>
+        <div class="row">
+          <div><label>In stock (${esc(it.msg_unit)})</label><input inputmode="decimal" name="q" value="${shown}" placeholder="0"></div>
+          <div><label>Price, Rs per ${esc(it.msg_unit)} (0 if donated)</label><input inputmode="decimal" name="p" value="${price}" placeholder="optional"></div>
+        </div></div>`;
+    }).join("") + `<button class="primary" type="submit">Save stock</button>`;
+
+    document.getElementById("messages").innerHTML = d.messages.length ? d.messages.map((m) =>
+      `<div class="msg"><div class="who">${m.direction === "in" ? "You" : "RASAD"} · ${when(m.at)}</div>${esc(m.text)}</div>`).join("")
+      : `<div class="empty">No messages yet.</div>`;
+  }
+
+  document.getElementById("stock").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const cards = [...e.target.querySelectorAll("[data-item]")];
+    let sent = 0;
+    for (const c of cards) {
+      const q = c.querySelector("[name=q]").value.trim();
+      const p = c.querySelector("[name=p]").value.trim();
+      if (q === "") continue;
+      await say(`STOCK ${c.dataset.item} ${q} ${c.dataset.unit}${p !== "" ? " @ " + p : ""}`);
+      sent++;
+    }
+    if (!sent) toast("Enter a quantity for at least one item.");
+  });
+
+  document.getElementById("orders").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.say) say(b.dataset.say);
+    if (b.dataset.reject) {
+      const why = prompt("Why can you not supply this order?", "out of stock");
+      if (why !== null) say(`REJECT ${b.dataset.reject} ${why}`);
+    }
+  });
+
+  load();
+  setInterval(load, 20000);
+})();
+</script>
+</body>
+</html>

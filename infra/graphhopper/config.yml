@@ -1,0 +1,38 @@
+# GraphHopper 11 for RASAD. One car profile with landmarks (LM) so each request can carry
+# its own custom model: RASAD sends risk zones as areas and lowers their priority.
+graphhopper:
+  datareader.file: ""          # set with -Ddw.graphhopper.datareader.file=<state>.osm.pbf
+  graph.location: graph-cache
+  profiles:
+    - name: car
+      custom_model_files: [car.json]
+  profiles_ch: []
+  profiles_lm:
+    - profile: car
+  graph.encoded_values: car_access, car_average_speed, road_access, road_class, max_speed
+  prepare.min_network_size: 200
+  prepare.subnetworks.threads: 1
+  routing.snap_preventions_default: tunnel, ferry
+  routing.non_ch.max_waypoint_distance: 1000000
+  routing.max_visited_nodes: 3000000
+  import.osm.ignored_highways: footway,construction,cycleway,path,steps,pedestrian,bridleway
+  graph.dataaccess.default_type: RAM_STORE
+
+server:
+  application_connectors:
+    - type: http
+      port: 8989
+      bind_host: 0.0.0.0
+      max_request_header_size: 50k
+  request_log:
+    appenders: []
+  admin_connectors:
+    - type: http
+      port: 8990
+      bind_host: 0.0.0.0
+
+logging:
+  appenders:
+    - type: console
+      time_zone: UTC
+      log_format: "%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n"

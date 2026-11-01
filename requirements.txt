@@ -1,0 +1,10 @@
+fastapi>=0.162,<1
+uvicorn[standard]>=0.54
+httpx>=0.28,<1
+asyncpg>=0.32
+redis>=8.1
+shapely>=2.2
+pydantic-settings>=2.16
+defusedxml>=0.7.1
+websockets>=17
+ortools==9.15.6755

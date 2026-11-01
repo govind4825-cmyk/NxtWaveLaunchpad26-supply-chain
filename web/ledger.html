@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Needs Ledger · RASAD</title>
+  <meta name="description" content="What relief shelters need right now, computed from live alerts, population data and shelter headcounts.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #f6f4ef; --card: #fff; --ink: #1b2126; --muted: #5d6870; --line: #e2ddd3; --short: #c2410c; --ok: #2f855a; --bar: #e9e4da; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 15px; line-height: 1.45; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 28px 16px 48px; }
+    header .brand { color: var(--muted); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
+    header .brand b { color: var(--short); font-weight: 600; letter-spacing: 0; text-transform: none; font-size: 16px; margin-right: 6px; }
+    h1 { font-size: 30px; line-height: 1.15; margin: 8px 0 6px; }
+    .lead { font-size: 17px; margin: 0 0 6px; max-width: 46em; }
+    .meta { color: var(--muted); font-size: 13px; }
+    .banner { background: #fff4e6; border: 1px solid #f3d3b0; border-radius: 10px; padding: 12px 14px; margin: 18px 0 22px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 28px 0 10px; }
+    .items { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+    .item .name { font-weight: 600; }
+    .item .qty { font-family: "IBM Plex Mono", monospace; font-size: 26px; margin: 6px 0 2px; }
+    .item .qty small { font-size: 14px; color: var(--muted); }
+    .item.covered .qty { color: var(--ok); font-size: 18px; }
+    .item .by { color: var(--short); font-size: 13px; font-weight: 500; }
+    .item .rate { color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .bar { height: 6px; background: var(--bar); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: var(--ok); }
+    table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 14px; }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-weight: 500; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; background: #faf8f4; }
+    tr:last-child td { border-bottom: 0; }
+    .tag { font-size: 12px; padding: 1px 6px; border-radius: 4px; background: var(--bar); color: var(--muted); white-space: nowrap; }
+    .tag.cut_off { background: #fde2d7; color: var(--short); } .tag.closing { background: #fff0d9; color: #a15c07; } .tag.open { background: #dff3e7; color: var(--ok); }
+    .est { color: var(--muted); font-size: 12px; }
+    .lead .est { display: block; font-size: 13px; line-height: 1.4; margin-top: 4px; }
+    .empty { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 24px; color: var(--muted); }
+    footer { margin-top: 32px; color: var(--muted); font-size: 13px; }
+    footer a { color: inherit; }
+    .scroll { overflow-x: auto; }
+    @media (max-width: 600px) { h1 { font-size: 24px; } .hide-sm { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand"><b>रसद</b>RASAD Needs Ledger</div>
+      <h1>What relief shelters need right now</h1>
+      <p class="lead" id="lead">Loading the latest figures…</p>
+      <div class="meta" id="updated"></div>
+    </header>
+
+    <div class="banner"><b>Before you send anything:</b> only the items listed as short below are needed. Items marked covered, and anything not on this page, should not be sent; they block warehouses and trucks. A cash donation to a recognised relief body is always usable.</div>
+
+    <h2>Still short</h2>
+    <div id="items" class="items"></div>
+
+    <h2>By shelter, most urgent first</h2>
+    <div class="scroll"><div id="shelters"></div></div>
+
+    <footer>
+      <p><b>How these numbers are made.</b> Need = people × Sphere minimum standards × days until the alert ends plus two days, minus what is already ordered or delivered. People come from each shelter's latest headcount; where none has arrived yet, an estimate from WorldPop 2020 population in the area the shelter serves × a displacement planning rate set by the district officer (marked "estimate"). Shelters whose last safe road closes soonest are listed first.</p>
+      <p>Sources: official alerts (NDMA SACHET, IMD, GDACS), WorldPop, OpenStreetMap, shelter headcounts. Machine-readable: <a href="/api/ledger">/api/ledger</a>. Refreshes every minute.</p>
+    </footer>
+  </div>
+
+<script>
+(() => {
+  const NAMES = {
+    drinking_water: "Drinking water",
+    cereal_ration: "Rice or atta (cereal ration)",
+    bathing_soap: "Bathing soap",
+    water_containers: "Water containers, 10–20 L",
+  };
+  const STATUS = { cut_off: "Cut off", closing: "Road closing", open: "Road open", unknown: "Road unknown", unroutable: "No route" };
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const nf = new Intl.NumberFormat("en-IN");
+  const when = (iso) => iso ? new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—";
+
+  function qty(q, unit) {
+    if (unit === "g" && q >= 1000) return [nf.format(Math.ceil(q / 100) / 10), "kg"];
+    if (unit === "litres" && q >= 10000) return [nf.format(Math.round(q / 100) / 10) + "k", "litres"];
+    return [nf.format(Math.ceil(q)), unit];
+  }
+
+  async function load() {
+    let d;
+    try { d = await (await fetch("/api/ledger")).json(); }
+    catch (e) { document.getElementById("lead").textContent = "The ledger is temporarily unavailable. Please try again shortly."; return; }
+
+    const n = d.shelters.length;
+    if (!n) {
+      document.getElementById("lead").textContent = d.shelters_awaiting_count
+        ? `${d.shelters_awaiting_count} shelter${d.shelters_awaiting_count === 1 ? " is" : "s are"} open but waiting for a headcount. Needs will appear here as soon as counts arrive.`
+        : "No relief needs are open right now.";
+      document.getElementById("items").innerHTML = `<div class="empty">Nothing is short. Please do not send relief material unless an official appeal asks for it.</div>`;
+      document.getElementById("shelters").innerHTML = "";
+    } else {
+      const est = d.people - d.people_from_headcounts;
+      document.getElementById("lead").innerHTML = `${nf.format(d.people)} people across ${n} shelter${n === 1 ? "" : "s"} in active alert areas.` +
+        (est > 0 ? ` <span class="est">${nf.format(d.people_from_headcounts)} counted at shelters, ${nf.format(est)} estimated until counts arrive.</span>` : "") +
+        (d.shelters_awaiting_count ? ` <span class="est">${d.shelters_awaiting_count} more shelter${d.shelters_awaiting_count === 1 ? " is" : "s are"} waiting for a headcount and not included yet.</span>` : "");
+
+      document.getElementById("items").innerHTML = d.items.map((it) => {
+        const [v, u] = qty(it.short, it.unit);
+        const pct = it.needed ? Math.min(100, Math.round(100 * it.committed / it.needed)) : 0;
+        return it.status === "covered"
+          ? `<div class="item covered"><div class="name">${esc(NAMES[it.item] || it.item)}</div><div class="qty">Covered</div><div class="rate">Please do not send.</div></div>`
+          : `<div class="item"><div class="name">${esc(NAMES[it.item] || it.item)}</div>
+               <div class="qty">${v} <small>${esc(u)}</small></div>
+               <div class="by">First needed by ${when(it.earliest_needed_by)}</div>
+               <div class="bar" title="${pct}% ordered or delivered"><i style="width:${pct}%"></i></div>
+               <div class="rate">${esc(it.rate || "")}</div></div>`;
+      }).join("");
+
+      document.getElementById("shelters").innerHTML = `<table>
+        <tr><th>Shelter</th><th class="hide-sm">Area</th><th>People</th><th>Access</th><th>Needed by</th><th class="hide-sm">Short</th></tr>
+        ${d.shelters.map((s) => `<tr>
+          <td>${esc(s.shelter || "Unnamed shelter")}</td>
+          <td class="hide-sm">${esc(s.area || s.hazard || "")}</td>
+          <td>${nf.format(s.people)}${s.people_basis === "planning" ? ' <span class="est">estimate</span>' : ""}</td>
+          <td><span class="tag ${esc(s.access_status || "")}">${esc(STATUS[s.access_status] || "Checking")}</span></td>
+          <td>${when(s.needed_by)}</td>
+          <td class="hide-sm">${s.items.filter((i) => i.short > 0).map((i) => { const [v, u] = qty(i.short, i.unit); return `${esc(NAMES[i.item] || i.item)}: ${v} ${esc(u)}`; }).join("<br>")}</td>
+        </tr>`).join("")}</table>`;
+    }
+    document.getElementById("updated").textContent = d.needs_computed_at ? `Figures computed ${when(d.needs_computed_at)} IST` : "";
+  }
+  load();
+  setInterval(load, 60000);
+})();
+</script>
+</body>
+</html>
